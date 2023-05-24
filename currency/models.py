@@ -2,8 +2,33 @@ from django.db import models
 
 
 # Create your models here.
+from django.utils import timezone
+
+
 class Rate(models.Model):
     name = models.CharField(max_length=100)
 
     def __str__(self):
         return self.name
+
+
+class ExchangeRateProvider(models.Model):
+
+    name = models.CharField(max_length=20)
+    api_url = models.URLField()
+
+
+# Create your models here.
+class ExchangeRate(models.Model):
+
+    base_currency = models.CharField(max_length=20)
+    currency = models.CharField(max_length=20)
+
+    sale_rate = models.DecimalField(max_digits=10, decimal_places=4)
+    buy_rate = models.DecimalField(max_digits=10, decimal_places=4)
+
+    date = models.DateTimeField(blank=True, null=True)
+    provider = models.ForeignKey(ExchangeRateProvider, on_delete=models.CASCADE)
+
+    def __str__(self):
+        return f"{self.base_currency}/{self.currency}"
