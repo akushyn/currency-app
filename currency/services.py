@@ -1,4 +1,6 @@
 import datetime
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
 import requests
 from django.utils import timezone
 
@@ -29,7 +31,13 @@ class ExchangeRatesService:
     def __init__(self, provider, start_date, end_date):
         self.provider = provider
         self.start_date = start_date
+
         self.end_date = end_date
+
+    @property
+    def num_days(self):
+        delta = self.end_date - self.start_date
+        return delta.days
 
     @property
     def url(self):
@@ -39,13 +47,17 @@ class ExchangeRatesService:
         delta = datetime.timedelta(days=1)
         current = self.start_date
 
-        while current < self.end_date:
-            currency_rates = self.get_rate(date=current)
-            print(currency_rates)
-            for rates in currency_rates:
-                rates['provider_id'] = self.provider.pk
-                ExchangeRate.objects.get_or_create(**rates)
-            current += delta
+        with ThreadPoolExecutor(max_workers=3) as executor:
+            futures = [executor.submit(self.get_rate, date=current + i * delta) for i in range(self.num_days)]
+
+            objects = []
+            for future in as_completed(futures):
+                currency_rates = future.result()
+                for rates in currency_rates:
+                    rates['provider_id'] = self.provider.pk
+                    rate, _ = ExchangeRate.objects.get_or_create(**rates)
+                    objects.append(rate)
+        return objects
 
     def get_rate(self, date):
         params = {
